@@ -2,21 +2,19 @@
 #include <opencv2/imgcodecs.hpp>
 #include <vector>
 
-using Kernel = std::vector<std::vector<std::vector<int>>>;
+using Kernel = std::vector<std::vector<int>>;
 
 const cv::String lena{"../lena.bmp"};
-const Kernel J{{{0, -1}, {0, 0}, {1, 0}}};
-const Kernel K{{{-1, 0}, {-1, 1}, {0, 1}}};
+const Kernel J{{0, -1}, {0, 0}, {1, 0}};
+const Kernel K{{-1, 0}, {-1, 1}, {0, 1}};
 
 const Kernel octagonKernel() {
-    Kernel kernel(5);
-    int row = 0;
+    Kernel kernel;
     for (int i = -2; i <= 2; i++) {
         for (int j = -2; j <= 2; j++) {
             if (i * j != 4 && i * j != -4)
-                kernel[row].push_back({i, j});
+                kernel.push_back({i, j});
         }
-        row++;
     }
     return kernel;
 }
@@ -44,13 +42,15 @@ cv::Mat dilation(const cv::Mat &image, const Kernel &k) {
         const uchar *src{image.ptr<uchar>(i)};
         for (int j = 0; j < n; j++) {
             if (src[j] == 0xFF) {
-                for (auto &row : k) {
-                    for (auto &p : row) {
-                        int y{i + p[0]}, x{j + p[1]};
-                        if (x >= 0 && y >= 0 && x < n && y < m)
-                            image_.at<uchar>(y, x) = 0xFF;
-                    }
+                bool keep = false;
+                for (auto &p : k) {
+                    int y{i + p[0]}, x{j + p[1]};
+                    if (y == i && x == j)
+                        keep = true;
+                    if (x >= 0 && y >= 0 && x < n && y < m)
+                        image_.at<uchar>(y, x) = 0xFF;
                 }
+                image_.at<uchar>(i, j) = keep ? 0xFF : 0;
             }
         }
     }
@@ -66,11 +66,9 @@ cv::Mat erosion(const cv::Mat &image, const Kernel &k) {
         for (int j = 0; j < n; j++) {
             bool keep = true;
             for (int p = 0; p < k.size() && keep; p++) {
-                for (int q = 0; q < k[p].size() && keep; q++) {
-                    int y{i + k[p][q][0]}, x{j + k[p][q][1]};
-                    if (x >= 0 && y >= 0 && x < n && y < m)
-                        keep = image.at<uchar>(y, x) != 0;
-                }
+                int y{i + k[p][0]}, x{j + k[p][1]};
+                if (x >= 0 && y >= 0 && x < n && y < m)
+                    keep = image.at<uchar>(y, x) != 0;
             }
             image_.at<uchar>(i, j) = keep ? 0xFF : 0x00;
         }
@@ -133,7 +131,7 @@ int main() {
     cv::Mat image{cv::imread(lena, cv::IMREAD_GRAYSCALE)};
     image = binarize(image, 128);
 
-    Kernel k{octagonKernel()};
+    const Kernel k{octagonKernel()};
 
     cv::Mat M;
     M = dilation(image, k);
@@ -150,13 +148,6 @@ int main() {
 
     M = hitAndMiss(image, J, K);
     cv::imwrite("hit-and-miss.bmp", M);
-
-    // for (int i = 0; i < M.rows; i++) {
-    //     for (int j = 0; j < M.cols; j++) {
-    //         std::cout << static_cast<int>(M.at<uchar>(i, j)) << '\t';
-    //     }
-    //     std::cout << std::endl;
-    // }
 
     return 0;
 }
