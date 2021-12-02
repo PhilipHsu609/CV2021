@@ -6,47 +6,49 @@
 
 const cv::String lena{"../lena.bmp"};
 
-Mask<int> LOG(int k, double sigma) {
-    Mask<int> m(k);
-    int offset = k / 2;
-
-    auto g{[sigma](int r, int c) -> double {
-        double tmp{(std::pow(r, 2) + std::pow(c, 2)) / (2 * std::pow(sigma, 2))};
-        return -(1 - tmp) / (M_PI * std::pow(sigma, 4)) * std::exp(-tmp);
-    }};
-
-    for (int i = 0; i < k; i++) {
-        for (int j = 0; j < k; j++) {
-            double val{g(i - offset, j - offset) * (178 / g(0, 0))};
-            m[i].push_back(static_cast<int>(std::round(val - 3e-2)));
-        }
-    }
-    return m;
-}
-
 template <class T>
-cv::Mat edgeDetect(const cv::Mat &image, const std::vector<Mask<T>> &masks, int threshold, int offset = 0) {
+std::vector<std::vector<int>> applyMask(const cv::Mat &image, const Mask<T> &mask, int offset) {
     int m = image.rows, n = image.cols;
-    cv::Mat image_(m, n, CV_8UC1, cv::Scalar::all(0));
+    std::vector<std::vector<int>> output(m, std::vector<int>(n, 0));
     cv::Mat pad;
     cv::copyMakeBorder(image, pad, offset, offset, offset, offset, cv::BORDER_REPLICATE);
 
     for (int i = offset; i < m + offset; i++) {
-        uchar *dst{image_.ptr<uchar>(i - offset)};
         for (int j = offset; j < n + offset; j++) {
-            T acc{}, max{};
-            for (const auto &mask : masks) {
-                T conv{};
-                for (int k = 0; k < mask.size(); k++) {
-                    for (int l = 0; l < mask.size(); l++) {
-                        conv += pad.at<uchar>(i + k - offset, j + l - offset) * mask[k][l];
-                    }
+            T conv{};
+            for (int k = 0; k < mask.size(); k++) {
+                for (int l = 0; l < mask.size(); l++) {
+                    conv += static_cast<T>(pad.at<uchar>(i + k - offset, j + l - offset)) * mask[k][l];
                 }
-                acc += conv * conv;
-                max = std::max<T>(max, conv);
             }
-            T grad = (masks.size() != 2) ? max : std::sqrt(acc);
-            dst[j - offset] = (grad >= threshold) ? 0 : 255;
+            output[i - offset][j - offset] = conv;
+        }
+    }
+
+    return output;
+}
+
+cv::Mat zeroCorssing(const std::vector<std::vector<int>> &image, int threshold) {
+    int m = image.size(), n = image[0].size();
+    cv::Mat image_(m, n, CV_8UC1, cv::Scalar::all(0));
+
+    const std::vector<std::vector<int>> dirs{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
+
+    for (int i = 0; i < m; i++) {
+        uchar *dst{image_.ptr<uchar>(i)};
+        for (int j = 0; j < n; j++) {
+            uchar p = 255;
+            if (image[i][j] >= threshold) {
+                for (auto &dir : dirs) {
+                    int ii{i + dir[0]}, jj{j + dir[1]};
+                    if (ii >= 0 && jj >= 0 && ii < m && jj < n)
+                        if (image[ii][jj] <= -threshold) {
+                            p = 0;
+                            break;
+                        }
+                }
+            }
+            dst[j] = p;
         }
     }
 
@@ -56,14 +58,22 @@ cv::Mat edgeDetect(const cv::Mat &image, const std::vector<Mask<T>> &masks, int 
 int main() {
     auto image{cv::imread(lena, cv::IMREAD_GRAYSCALE)};
 
-    auto x{LOG(11, 1.4)};
+    cv::Mat M;
 
-    for (auto r : x) {
-        for (auto v : r) {
-            std::cout << v << "\t";
-        }
-        std::cout << std::endl;
-    }
+    M = zeroCorssing(applyMask(image, L4, 1), 15);
+    cv::imwrite("L4.bmp", M);
+
+    M = zeroCorssing(applyMask(image, L8, 1), 15);
+    cv::imwrite("L8.bmp", M);
+
+    M = zeroCorssing(applyMask(image, mvL, 1), 20);
+    cv::imwrite("mvL.bmp", M);
+
+    M = zeroCorssing(applyMask(image, LOG, 5), 3000);
+    cv::imwrite("LOG.bmp", M);
+
+    M = zeroCorssing(applyMask(image, DOG, 5), 1);
+    cv::imwrite("DOG.bmp", M);
 
     return 0;
 }
