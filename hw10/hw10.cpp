@@ -58,22 +58,11 @@ cv::Mat zeroCorssing(const std::vector<std::vector<int>> &image, int threshold) 
 int main() {
     auto image{cv::imread(lena, cv::IMREAD_GRAYSCALE)};
 
-    cv::Mat M;
-
-    M = zeroCorssing(applyMask(image, L4, 1), 15);
-    cv::imwrite("L4.bmp", M);
-
-    M = zeroCorssing(applyMask(image, L8, 1), 15);
-    cv::imwrite("L8.bmp", M);
-
-    M = zeroCorssing(applyMask(image, mvL, 1), 20);
-    cv::imwrite("mvL.bmp", M);
-
-    M = zeroCorssing(applyMask(image, LOG, 5), 3000);
-    cv::imwrite("LOG.bmp", M);
-
-    M = zeroCorssing(applyMask(image, DOG, 5), 1);
-    cv::imwrite("DOG.bmp", M);
+    cv::imwrite("L4.bmp", zeroCorssing(applyMask(image, L4, 1), 15));
+    cv::imwrite("L8.bmp", zeroCorssing(applyMask(image, L8, 1), 15));
+    cv::imwrite("mvL.bmp", zeroCorssing(applyMask(image, mvL, 1), 20));
+    cv::imwrite("LOG.bmp", zeroCorssing(applyMask(image, LOG, 5), 3000));
+    cv::imwrite("DOG.bmp", zeroCorssing(applyMask(image, DOG, 5), 1));
 
     return 0;
 }
